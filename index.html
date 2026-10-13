@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>工程甘特圖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 三段式工作表 — 案場資料 / 工項與甘特 / 預定累計 S 曲線，上方黏著工具列 */
+:root{
+  --bg:#eef0f3; --surface:#ffffff; --surface-2:#f6f7f9; --ink:#18202b; --muted:#5b6574; --line:#d6dbe2;
+  --accent:#c8691c; --accent-ink:#ffffff; --accent-soft:#fbeedf;
+  --bar:#2d5c88; --bar-soft:#d9e5f1; --curve:#2d5c88; --today:#c8691c;
+  --warn:#b23b1e; --warn-soft:#fbe7e1; --ok:#2b7a4b; --ok-soft:#e1f2e7; --nonwork:#e7e9ee;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11151b; --surface:#191f27; --surface-2:#1f2630; --ink:#e5e9ef; --muted:#97a2b1; --line:#2d3643;
+  --accent:#ec9a4c; --accent-ink:#1a1206; --accent-soft:#3a2a1a;
+  --bar:#6c9fd2; --bar-soft:#24364a; --curve:#7fb0e0; --today:#ec9a4c;
+  --warn:#f08a6c; --warn-soft:#3d2219; --ok:#6cc893; --ok-soft:#1b3326; --nonwork:#232a34; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11151b; --surface:#191f27; --surface-2:#1f2630; --ink:#e5e9ef; --muted:#97a2b1; --line:#2d3643;
+  --accent:#ec9a4c; --accent-ink:#1a1206; --accent-soft:#3a2a1a;
+  --bar:#6c9fd2; --bar-soft:#24364a; --curve:#7fb0e0; --today:#ec9a4c;
+  --warn:#f08a6c; --warn-soft:#3d2219; --ok:#6cc893; --ok-soft:#1b3326; --nonwork:#232a34; color-scheme:dark}
+*{box-sizing:border-box}
+html{color-scheme:light}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+.cloud-in{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.cloud-in .f{flex:1 1 260px}
+.cloud-btns{display:flex;flex-wrap:wrap;gap:8px}
+.ghp{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+.ghp .pgrid{margin-bottom:12px}
+.btn.save{border-color:var(--bar);color:var(--bar);font-weight:700}
+.btn.danger{color:var(--warn)}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:0 48px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+/* toolbar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);margin-inline:-16px;padding:10px 16px}
+.bar-in{max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.brand{display:flex;flex-direction:column;margin-right:auto;min-width:0}
+.brand h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.02em}
+.brand span{font-size:12px;color:var(--muted)}
+.btn{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.small{padding:3px 8px;font-size:12px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.chip.dirty{color:var(--warn);background:var(--warn-soft);border-color:transparent}
+.chip.ok{color:var(--ok);background:var(--ok-soft);border-color:transparent}
+
+/* sections */
+section.panel{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.ph{display:flex;align-items:baseline;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);flex-wrap:wrap}
+.ph .tag{font-family:var(--f-num);font-size:12px;color:var(--accent);font-weight:500;letter-spacing:.06em}
+.ph h2{margin:0;font-size:16px}
+.ph .hint{font-size:12px;color:var(--muted);margin-left:auto}
+.pb{padding:16px}
+
+/* project grid */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 16px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.wide{grid-column:span 2}
+@media (max-width:520px){.f.wide{grid-column:auto}}
+.f label{font-size:12px;color:var(--muted);letter-spacing:.04em}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:7px 9px;width:100%;min-width:0}
+textarea{font-family:var(--f-num);font-size:12px;resize:vertical}
+.seg{display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.seg label{flex:1;text-align:center;padding:7px 4px;cursor:pointer;font-size:14px;color:var(--ink);letter-spacing:0}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg label:has(input:checked){background:var(--ink);color:var(--surface);font-weight:500}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:-2px}
+.out{border:1px dashed var(--line);border-radius:5px;padding:7px 9px;background:var(--surface-2);min-height:38px;font-family:var(--f-num)}
+.out.big{font-weight:500;color:var(--ink)}
+.stale .out,.stale .calc{opacity:.45}
+.work-opts{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.work-opts summary{cursor:pointer;font-size:13px;color:var(--muted)}
+.wo-in{display:grid;grid-template-columns:minmax(180px,240px) 1fr;gap:16px;margin-top:10px}
+@media (max-width:640px){.wo-in{grid-template-columns:1fr}}
+.checks{display:flex;flex-direction:column;gap:6px}
+.checks label{display:flex;gap:8px;align-items:center;font-size:13px}
+.checks input{width:auto}
+.note{font-size:12px;color:var(--muted);margin:6px 0 0}
+
+/* item table */
+.tscroll{overflow-x:auto}
+table.items{border-collapse:collapse;width:100%;min-width:900px}
+.items th{font-size:12px;font-weight:500;color:var(--muted);text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap;letter-spacing:.04em}
+.items td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+.items td.idx{font-family:var(--f-num);color:var(--muted);width:34px;text-align:center}
+.items td.calc{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.items td.calc.date{text-align:left}
+.items input.n{text-align:right;font-family:var(--f-num)}
+.items tfoot td{font-weight:500;background:var(--surface-2)}
+.ops{display:flex;gap:4px;justify-content:flex-end}
+.warnline{color:var(--warn);font-size:11px;display:block}
+.add-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
+@media (max-width:860px){
+  table.items{min-width:0}
+  .items thead{display:none}
+  .items tbody,.items tfoot{display:block}
+  .items tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .items td{display:flex;flex-direction:column;gap:3px;border:0;padding:0;min-width:0}
+  .items td[data-l]::before{content:attr(data-l);font-size:12px;color:var(--muted);font-family:var(--f-body);text-align:left;letter-spacing:.04em}
+  .items td.calc{text-align:left;justify-content:flex-start}
+  .items td.idx{grid-column:1/-1;flex-direction:row;width:auto;text-align:left;font-weight:500;color:var(--accent)}
+  .items td.idx::before{content:"工項 "}
+  .items td.nm,.items td.opc{grid-column:1/-1}
+  .items td.calc{border:1px dashed var(--line);border-radius:5px;padding:5px 8px;background:var(--surface-2)}
+  .items td.calc[data-l]::before{margin-bottom:1px}
+  .ops{justify-content:flex-start}
+  .items tfoot tr{grid-template-columns:auto 1fr 1fr;padding:10px 8px;background:var(--surface-2)}
+  .items tfoot td:empty{display:none}
+  .items tfoot td.calc{border:0;padding:0;background:none}
+}
+.errors{margin:12px 0 0;padding:10px 14px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-size:13px}
+.errors ul{margin:4px 0 0;padding-left:18px}
+
+/* gantt */
+.gtools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0 8px}
+.gtools h3{margin:0;font-size:14px;margin-right:auto}
+.gtools select{width:auto;padding:4px 8px;font-size:13px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.gscroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px;position:relative}
+.gantt{position:relative;font-size:12px}
+.grow{display:flex;border-bottom:1px solid var(--line);min-height:34px}
+.grow:last-child{border-bottom:0}
+.glabel{position:sticky;left:0;z-index:3;flex:0 0 190px;width:190px;background:var(--surface);border-right:1px solid var(--line);padding:6px 10px;display:flex;flex-direction:column;justify-content:center;line-height:1.3}
+.glabel b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.glabel small{color:var(--muted);font-family:var(--f-num);font-size:11px}
+@media (max-width:520px){.glabel{flex-basis:120px;width:120px}}
+.gtrack{position:relative;flex:0 0 auto}
+.ghead .glabel{background:var(--surface-2)}
+.ghead .gtrack{background:var(--surface-2)}
+.gmon{position:absolute;top:0;height:20px;border-left:1px solid var(--line);padding-left:4px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden}
+.gday{position:absolute;top:20px;height:20px;font-size:10px;color:var(--muted);text-align:center;font-family:var(--f-num);border-left:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.gnw{position:absolute;top:0;bottom:0;background:var(--nonwork)}
+.gbar{position:absolute;top:8px;height:18px;border-radius:3px;background:var(--bar);color:#fff;font-size:11px;line-height:18px;padding:0 6px;white-space:nowrap;overflow:hidden;font-family:var(--f-num)}
+.gbar.proj{background:var(--ink);color:var(--surface)}
+.gbar.out-range{background:repeating-linear-gradient(135deg,var(--warn) 0 6px,color-mix(in srgb,var(--warn) 75%,#000) 6px 12px)}
+.gline{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--today);z-index:2;pointer-events:none}
+.gline span{position:absolute;top:2px;left:4px;font-size:10px;color:var(--today);white-space:nowrap;background:var(--surface);padding:0 3px;border-radius:3px}
+.gend{border-left:2px dashed var(--ink);opacity:.6}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+
+/* s-curve */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+.stat{border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.stat .k{font-size:12px;color:var(--muted)}
+.stat .v{font-family:var(--f-num);font-size:20px;font-weight:500;margin-top:2px}
+.stat .v small{font-size:12px;color:var(--muted);font-weight:400}
+.chartbox{position:relative}
+.chartbox svg{display:block;width:100%;height:auto}
+.chartbox text{font-family:var(--f-num);font-size:12px;fill:var(--muted)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12px;padding:6px 9px;border-radius:5px;white-space:nowrap;transform:translate(-50%,-115%);font-family:var(--f-num);line-height:1.4}
+table.months{border-collapse:collapse;font-size:12px;margin-top:14px;min-width:100%}
+.months th,.months td{border:1px solid var(--line);padding:5px 8px;text-align:right;white-space:nowrap;font-family:var(--f-num)}
+.months th:first-child,.months td:first-child{text-align:left;font-family:var(--f-body);position:sticky;left:0;background:var(--surface-2);z-index:1}
+.months thead th{background:var(--surface-2);font-weight:500}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:6px;font-size:13px;z-index:50;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.gbar{transition:width .2s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="bar"><div class="bar-in">
+    <div class="brand"><h1>工程甘特圖</h1><span>預定進度・權重分配・S 曲線</span></div>
+    <span id="status" class="chip dirty">尚未計算</span>
+    <span id="cloudStatus" class="chip">未連線 GitHub</span>
+    <button class="btn" id="btnExport" type="button">匯出 Excel</button>
+    <button class="btn save" id="btnSave" type="button">儲存</button>
+    <button class="btn primary" id="btnCalc" type="button">確認計算</button>
+  </div></div>
+
+  <section class="panel" id="secCloud">
+    <div class="pb">
+      <div class="cloud-in">
+        <div class="f"><label for="projSel">案場（儲存在 GitHub）</label><select id="projSel"></select></div>
+        <div class="cloud-btns">
+          <button class="btn" id="btnNew" type="button">＋ 新增案場</button>
+          <button class="btn" id="btnSample" type="button">載入範例</button>
+          <button class="btn" id="btnReload" type="button">重新讀取</button>
+          <button class="btn danger" id="btnDel" type="button">刪除案場</button>
+          <button class="btn" id="btnGh" type="button">GitHub 連線設定</button>
+        </div>
+      </div>
+      <div class="ghp" id="ghPanel" hidden>
+        <div class="pgrid">
+          <div class="f"><label for="ghOwner">GitHub 帳號</label><input id="ghOwner" type="text" autocomplete="off" spellcheck="false"></div>
+          <div class="f"><label for="ghRepo">資料 repo（私人）</label><input id="ghRepo" type="text" autocomplete="off" spellcheck="false"></div>
+          <div class="f"><label for="ghPath">資料檔名</label><input id="ghPath" type="text" autocomplete="off" spellcheck="false"></div>
+          <div class="f wide"><label for="ghToken">存取權杖（Personal access token）</label><input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></div>
+        </div>
+        <div class="cloud-btns">
+          <button class="btn primary" id="btnGhSave" type="button">儲存設定並連線</button>
+          <button class="btn" id="btnGhOff" type="button">清除權杖</button>
+        </div>
+        <p class="note">權杖只存在這台裝置的瀏覽器，不會寫進網頁程式碼。每支手機或電腦第一次使用時都要設定一次。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第一排 -->
+  <section class="panel" id="secProj">
+    <div class="ph"><span class="tag">第一排</span><h2>案場基本資料</h2><span class="hint">完工日依工期方式與天數推算（開工日算第 1 天）</span></div>
+    <div class="pb">
+      <div class="pgrid">
+        <div class="f wide"><label for="pName">工程名稱</label><input id="pName" type="text" placeholder="例：○○工程"></div>
+        <div class="f wide"><label for="pOwner">業主／主辦機關</label><input id="pOwner" type="text"></div>
+        <div class="f"><label>計算工期方式</label>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="pMode" id="pModeCal" value="cal">日曆天</label>
+            <label><input type="radio" name="pMode" id="pModeWork" value="work">工作天</label>
+          </div></div>
+        <div class="f"><label for="pDays">工期天數</label><input id="pDays" type="number" min="1" step="1" inputmode="numeric" class="num"></div>
+        <div class="f"><label for="pStart">開工日</label><input id="pStart" type="date"></div>
+        <div class="f"><label>完工日（計算）</label><div class="out big" id="pEnd">—</div></div>
+        <div class="f"><label>跨越日曆天數</label><div class="out" id="pSpan">—</div></div>
+      </div>
+      <details class="work-opts" id="workOpts">
+        <summary>工作天：非工作日設定</summary>
+        <div class="wo-in">
+          <div class="checks">
+            <label><input type="checkbox" id="exSat">星期六不計</label>
+            <label><input type="checkbox" id="exSun">星期日不計</label>
+            <label><input type="checkbox" id="exHol">國定假日／自訂休息日不計</label>
+            <p class="note">只在「工作天」時套用，工項也依同一方式計算。</p>
+          </div>
+          <div class="f"><label for="holidays">國定假日／自訂休息日（每行一個日期，後面可加說明）</label>
+            <textarea id="holidays" rows="7" spellcheck="false"></textarea>
+            <p class="note">已預填 115 年（2026）行政機關放假日；116 年請依人事行政總處公告自行加入，也可加入雨天、停工日。</p>
+          </div>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- 第二排 -->
+  <section class="panel" id="secItems">
+    <div class="ph"><span class="tag">第二排</span><h2>執行工項</h2><span class="hint">工項可下拉選擇或自行輸入；權重比＝工項金額 ÷ 總金額，單日百分比＝權重比 ÷ 天數</span></div>
+    <div class="pb">
+      <div class="tscroll">
+        <table class="items">
+          <thead><tr><th>項次</th><th style="min-width:200px">執行工項</th><th>開始時間</th><th style="width:84px">天數</th><th>完成時間</th><th style="width:150px">金額（元）</th><th>權重比</th><th>單日百分比</th><th></th></tr></thead>
+          <tbody id="itemBody"></tbody>
+          <tfoot><tr><td></td><td>合計</td><td></td><td></td><td></td><td class="calc num" id="sumAmt">—</td><td class="calc num" id="sumW">—</td><td></td><td></td></tr></tfoot>
+        </table>
+      </div>
+      <datalist id="itemOptions"></datalist>
+      <div class="add-row">
+        <button class="btn" type="button" id="btnAdd">＋ 新增工項</button>
+        <span class="note" style="margin:0">輸入完成後按上方「確認計算」，才會更新完成時間、權重、甘特圖與 S 曲線。</span>
+      </div>
+      <div class="errors" id="errors" hidden></div>
+
+      <div class="gtools">
+        <h3>甘特圖</h3>
+        <div class="legend"><span><i style="background:var(--ink)"></i>全案工期</span><span><i style="background:var(--bar)"></i>工項</span><span><i style="background:var(--warn)"></i>超出全案工期</span><span><i style="background:var(--nonwork);border:1px solid var(--line)"></i>非工作日</span></div>
+        <label for="zoom" class="note" style="margin:0">刻度</label>
+        <select id="zoom"><option value="4">緊密</option><option value="10" selected>標準</option><option value="22">逐日</option></select>
+      </div>
+      <div class="gscroll"><div class="gantt" id="gantt"><div class="empty">按「確認計算」產生甘特圖</div></div></div>
+    </div>
+  </section>
+
+  <!-- 第三排 -->
+  <section class="panel" id="secCurve">
+    <div class="ph"><span class="tag">第三排</span><h2>預定累計進度 S 曲線</h2><span class="hint">每日預定＝當日施作中各工項單日百分比加總</span></div>
+    <div class="pb">
+      <div class="stats" id="stats"></div>
+      <div class="chartbox" id="chartbox"><div class="empty">按「確認計算」產生 S 曲線</div></div>
+      <div class="tscroll"><table class="months" id="months"></table></div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script>
+(function(){
+"use strict";
+const OPTIONS=["假設工程","拆除工程","整地及土方工程","基礎及結構工程","排水工程","鋪面工程","建築及裝修工程","景觀工程","植栽工程","照明工程","水電工程","弱電工程","消防工程","設施及雜項工程","其他工程"];
+const HOL2026=["2026-01-01 元旦","2026-02-16 除夕","2026-02-17 春節","2026-02-18 春節","2026-02-19 春節","2026-02-20 小年夜補假","2026-02-27 和平紀念日補假","2026-04-03 兒童節補假","2026-04-06 清明節補假","2026-05-01 勞動節","2026-06-19 端午節","2026-09-25 中秋節","2026-09-28 教師節","2026-10-09 國慶日補假","2026-10-26 臺灣光復節補假","2026-12-25 行憲紀念日"].join("\n");
+const WD="日一二三四五六";
+const KEY="gantt-draft-v2";
+
+const $=id=>document.getElementById(id);
+const dl=$("itemOptions"); OPTIONS.forEach(o=>{const op=document.createElement("option");op.value=o;dl.appendChild(op)});
+
+/* ---------- date helpers (整數日序，避免時區問題) ---------- */
+function toDay(s){const m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec((s||"").trim());if(!m)return null;return Math.round(Date.UTC(+m[1],+m[2]-1,+m[3])/864e5)}
+function iso(d){return new Date(d*864e5).toISOString().slice(0,10)}
+function ymd(d){const t=new Date(d*864e5);return {y:t.getUTCFullYear(),m:t.getUTCMonth()+1,d:t.getUTCDate()}}
+function wday(d){return ((d+4)%7+7)%7}
+function fmt(d){const s=iso(d).replace(/-/g,"/");return s+"（"+WD[wday(d)]+"）"}
+function fmtShort(d){const t=ymd(d);return t.m+"/"+t.d}
+function todayDay(){const n=new Date();return Math.round(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())/864e5)}
+const pct=(v,dg=2)=>(v*100).toFixed(dg)+"%";
+const money=v=>Math.round(v).toLocaleString("en-US");
+
+/* ---------- state ---------- */
+const blankItem=()=>({name:"",start:"",days:"",amount:""});
+let state, result=null, dirty=true;
+
+function sample(){return {proj:{name:"國產材推廣中心景觀綠美化工程（範例）",owner:"農業部林業及自然保育署新竹分署",mode:"cal",days:"90",start:"2026-10-05",exSat:true,exSun:true,exHol:true,holidays:HOL2026},
+ items:[{name:"假設工程",start:"2026-10-05",days:"90",amount:"1010209"},
+        {name:"雨遮及建築外牆優化工程",start:"2026-10-20",days:"40",amount:"2732883"},
+        {name:"大廳優化工程",start:"2026-11-04",days:"60",amount:"106557"},
+        {name:"植栽工程",start:"2026-11-20",days:"30",amount:"1212910"},
+        {name:"景觀工程",start:"2026-12-01",days:"30",amount:"1593608"},
+        {name:"排水工程",start:"2026-12-01",days:"30",amount:"559465"},
+        {name:"電箱優化工程",start:"2026-12-10",days:"20",amount:"784368"}]}}
+function empty(){return {proj:{name:"",owner:"",mode:"cal",days:"",start:"",exSat:true,exSun:true,exHol:true,holidays:HOL2026},items:[blankItem(),blankItem(),blankItem()]}}
+
+let currentId=null,unsaved=false;
+function validState(o){return o&&o.proj&&Array.isArray(o.items)}
+function loadDraft(){try{const s=localStorage.getItem(KEY);if(s){const o=JSON.parse(s);if(o&&validState(o.state))return o}}catch(e){}return null}
+let saveT=null;function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify({id:currentId,unsaved,state}))}catch(e){}},300)}
+
+/* ---------- binding ---------- */
+const pf={name:"pName",owner:"pOwner",days:"pDays",start:"pStart",holidays:"holidays"};
+function fillProj(){
+  const p=state.proj;
+  for(const k in pf)$(pf[k]).value=p[k]||"";
+  $("pModeCal").checked=p.mode!=="work";$("pModeWork").checked=p.mode==="work";
+  $("exSat").checked=!!p.exSat;$("exSun").checked=!!p.exSun;$("exHol").checked=!!p.exHol;
+  $("workOpts").open=p.mode==="work";
+}
+for(const k in pf)$(pf[k]).addEventListener("input",e=>{state.proj[k]=e.target.value;markDirty()});
+["pModeCal","pModeWork"].forEach(id=>$(id).addEventListener("change",e=>{state.proj.mode=e.target.value;if(state.proj.mode==="work")$("workOpts").open=true;markDirty()}));
+["exSat","exSun","exHol"].forEach(id=>$(id).addEventListener("change",e=>{state.proj[id]=e.target.checked;markDirty()}));
+
+function renderItems(){
+  const tb=$("itemBody");tb.innerHTML="";
+  state.items.forEach((it,i)=>{
+    const tr=document.createElement("tr");
+    const r=result&&result.itemByIdx[i];
+    tr.innerHTML=`<td class="idx">${i+1} </td>
+      <td class="nm" data-l="執行工項"><input type="text" list="itemOptions" id="it-name-${i}" data-k="name" placeholder="選擇或輸入工項" value=""></td>
+      <td data-l="開始時間"><input type="date" id="it-start-${i}" data-k="start"></td>
+      <td data-l="天數"><input type="number" min="1" step="1" inputmode="numeric" class="n" id="it-days-${i}" data-k="days"></td>
+      <td class="calc date" data-l="完成時間">${r?fmt(r.end)+(r.warn?`<span class="warnline">${r.warn}</span>`:""):"—"}</td>
+      <td data-l="金額（元）"><input type="text" inputmode="decimal" class="n" id="it-amt-${i}" data-k="amount"></td>
+      <td class="calc" data-l="權重比">${r?pct(r.w,2):"—"}</td>
+      <td class="calc" data-l="單日百分比">${r?pct(r.daily,4):"—"}</td>
+      <td class="opc"><div class="ops"><button class="btn small" type="button" data-op="up" aria-label="上移">↑</button><button class="btn small" type="button" data-op="down" aria-label="下移">↓</button><button class="btn small" type="button" data-op="del" aria-label="刪除">刪除</button></div></td>`;
+    tr.querySelector('[data-k="name"]').value=it.name;
+    tr.querySelector('[data-k="start"]').value=it.start;
+    tr.querySelector('[data-k="days"]').value=it.days;
+    tr.querySelector('[data-k="amount"]').value=it.amount===""?"":money(+String(it.amount).replace(/,/g,"")||0);
+    tr.querySelectorAll("input").forEach(inp=>{
+      inp.addEventListener("input",()=>{state.items[i][inp.dataset.k]=inp.dataset.k==="amount"?inp.value.replace(/[^\d.]/g,""):inp.value;markDirty()});
+    });
+    const amt=tr.querySelector('[data-k="amount"]');
+    amt.addEventListener("focus",()=>{amt.value=state.items[i].amount});
+    amt.addEventListener("blur",()=>{const v=state.items[i].amount;amt.value=v===""?"":money(+v||0)});
+    tr.querySelectorAll("[data-op]").forEach(b=>b.addEventListener("click",()=>{
+      const op=b.dataset.op,a=state.items;
+      if(op==="del"){a.splice(i,1);if(!a.length)a.push(blankItem())}
+      else if(op==="up"&&i>0){[a[i-1],a[i]]=[a[i],a[i-1]]}
+      else if(op==="down"&&i<a.length-1){[a[i+1],a[i]]=[a[i],a[i+1]]}
+      else return;
+      result=null;markDirty();renderItems();
+    }));
+    tb.appendChild(tr);
+  });
+  $("sumAmt").textContent=result?money(result.total):"—";
+  $("sumW").textContent=result?"100.00%":"—";
+}
+$("btnAdd").addEventListener("click",()=>{state.items.push(blankItem());markDirty();renderItems();$("it-name-"+(state.items.length-1)).focus()});
+
+function markDirty(){
+  dirty=true;unsaved=true;save();setCloudUnsaved();
+  const s=$("status");s.className="chip dirty";s.textContent=result?"資料已變更，請按確認計算":"尚未計算";
+  document.body.classList.add("stale");
+}
+
+/* ---------- calculation ---------- */
+function compute(){
+  const p=state.proj,errs=[];
+  const mode=p.mode==="work"?"work":"cal";
+  const hol=new Set();
+  (p.holidays||"").split(/\n/).forEach(l=>{const m=/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(l);if(m){const d=toDay(m[1]+"-"+m[2]+"-"+m[3]);if(d!=null)hol.add(d)}});
+  const isWork=d=>{if(mode==="cal")return true;const w=wday(d);if(p.exSat&&w===6)return false;if(p.exSun&&w===0)return false;if(p.exHol&&hol.has(d))return false;return true};
+  const endOf=(s,n)=>{let d=s,c=0,g=0;while(g++<40000){if(isWork(d)){c++;if(c===n)return d}d++}return null};
+  const pStart=toDay(p.start),pDays=parseInt(p.days,10);
+  if(pStart==null)errs.push("請輸入開工日");
+  if(!(pDays>0))errs.push("請輸入工期天數（正整數）");
+  const pEnd=(pStart!=null&&pDays>0)?endOf(pStart,pDays):null;
+  const items=[],itemByIdx={};
+  state.items.forEach((it,i)=>{
+    const has=(it.name||"").trim()||it.start||it.days||it.amount;
+    if(!has)return;
+    const nm=(it.name||"").trim()||("工項 "+(i+1));
+    const s=toDay(it.start),n=parseInt(it.days,10),a=parseFloat(String(it.amount).replace(/,/g,""));
+    const bad=[];
+    if(!(it.name||"").trim())bad.push("工項名稱");
+    if(s==null)bad.push("開始時間");
+    if(!(n>0))bad.push("天數");
+    if(!(a>=0))bad.push("金額");
+    if(bad.length){errs.push(`第 ${i+1} 項「${nm}」缺少或錯誤：${bad.join("、")}`);return}
+    const end=endOf(s,n);
+    const days=[];for(let d=s;d<=end;d++)if(isWork(d))days.push(d);
+    items.push({idx:i,name:nm,start:s,n,amount:a,end,days});
+  });
+  if(!items.length&&!errs.length)errs.push("請至少輸入一個完整的工項");
+  const total=items.reduce((t,x)=>t+x.amount,0);
+  if(items.length&&!(total>0))errs.push("工項金額合計需大於 0，才能計算權重比");
+  if(errs.length)return {errs};
+  items.forEach(x=>{
+    x.w=x.amount/total;x.daily=x.w/x.n;
+    const w=[];
+    if(x.start<pStart)w.push("早於開工日");
+    if(x.end>pEnd)w.push("晚於完工日");
+    x.warn=w.length?"⚠ "+w.join("、"):"";
+    itemByIdx[x.idx]=x;
+  });
+  const t0=Math.min(pStart,...items.map(x=>x.start)),t1=Math.max(pEnd,...items.map(x=>x.end));
+  const N=t1-t0+1,daily=new Float64Array(N),cum=new Float64Array(N);
+  items.forEach(x=>x.days.forEach(d=>{daily[d-t0]+=x.daily}));
+  let c=0;for(let i=0;i<N;i++){c+=daily[i];cum[i]=Math.min(c,1+1e-12)}
+  const nonwork=[];for(let d=t0;d<=t1;d++)if(!isWork(d))nonwork.push(d);
+  return {mode,pStart,pDays,pEnd,items,itemByIdx,total,t0,t1,N,daily,cum,nonwork,hol,isWork,proj:JSON.parse(JSON.stringify(p))};
+}
+
+/* ---------- render outputs ---------- */
+function renderProjOut(){
+  if(!result){$("pEnd").textContent="—";$("pSpan").textContent="—";return}
+  $("pEnd").textContent=fmt(result.pEnd);
+  const span=result.pEnd-result.pStart+1;
+  $("pSpan").textContent=span+" 天"+(result.mode==="work"?`（含 ${span-result.pDays} 天非工作日）`:"");
+}
+
+function renderGantt(){
+  const g=$("gantt");
+  if(!result){g.innerHTML='<div class="empty">按「確認計算」產生甘特圖</div>';return}
+  const R=result,px=+$("zoom").value,W=R.N*px,x=d=>(d-R.t0)*px;
+  let h="";
+  // header
+  let mons="";for(let d=R.t0;d<=R.t1;){const t=ymd(d);const next=Math.round(Date.UTC(t.y,t.m,1)/864e5);const e=Math.min(next,R.t1+1);mons+=`<div class="gmon" style="left:${x(d)}px;width:${(e-d)*px}px">${t.y}/${t.m}</div>`;d=e}
+  let days="";
+  if(px>=18){for(let d=R.t0;d<=R.t1;d++)days+=`<div class="gday" style="left:${x(d)}px;width:${px}px">${ymd(d).d}</div>`}
+  else{for(let d=R.t0;d<=R.t1;d++){const dd=ymd(d).d;if(dd===1||dd===8||dd===15||dd===22)days+=`<div class="gday" style="left:${x(d)}px;width:${7*px}px;text-align:left;padding-left:2px">${dd}</div>`}}
+  const nw=R.mode==="work"?R.nonwork.map(d=>`<div class="gnw" style="left:${x(d)}px;width:${px}px"></div>`).join(""):"";
+  h+=`<div class="grow ghead" style="min-height:40px"><div class="glabel"><b>工項</b><small>${R.mode==="work"?"工作天":"日曆天"}</small></div><div class="gtrack" style="width:${W}px;height:40px">${mons}${days}</div></div>`;
+  const row=(label,sub,bar)=>`<div class="grow"><div class="glabel"><b title="${esc(label)}">${esc(label)}</b><small>${sub}</small></div><div class="gtrack" style="width:${W}px">${nw}${bar}</div></div>`;
+  h+=row("全案工期",`${fmtShort(R.pStart)}–${fmtShort(R.pEnd)}・${R.pDays}天`,`<div class="gbar proj" style="left:${x(R.pStart)}px;width:${(R.pEnd-R.pStart+1)*px}px">${R.pDays} 天</div>`);
+  R.items.forEach((it,i)=>{
+    const w=(it.end-it.start+1)*px;
+    h+=row(`${i+1}. ${it.name}`,`${fmtShort(it.start)}–${fmtShort(it.end)}・${it.n}天`,`<div class="gbar${it.warn?" out-range":""}" title="${esc(it.name)}：${iso(it.start)} ~ ${iso(it.end)}，${it.n} 天，權重 ${pct(it.w)}" style="left:${x(it.start)}px;width:${w}px">${w>70?it.n+" 天・"+pct(it.w,1):""}</div>`);
+  });
+  const td=todayDay();
+  const lines=(td>=R.t0&&td<=R.t1?`<div class="gline" style="left:${190+x(td)+px/2}px"><span>今日</span></div>`:"")+`<div class="gline gend" style="left:${190+x(R.pEnd+1)}px"></div>`;
+  g.style.width=(190+W)+"px";
+  g.innerHTML=h+lines;
+  if(matchMedia("(max-width:520px)").matches){g.style.width=(120+W)+"px";g.querySelectorAll(".gline").forEach(l=>{l.style.left=(parseFloat(l.style.left)-70)+"px"})}
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+function cumAt(d){const R=result;if(d<R.t0)return 0;if(d>R.t1)return 1;return R.cum[d-R.t0]}
+function monthRows(){
+  const R=result,rows=[];
+  for(let d=R.t0;d<=R.t1;){const t=ymd(d);const next=Math.round(Date.UTC(t.y,t.m,1)/864e5);const e=Math.min(next,R.t1+1);
+    const prev=cumAt(d-1),end=cumAt(e-1);rows.push({label:`${t.y}/${String(t.m).padStart(2,"0")}`,y:t.y,m:t.m,month:end-prev,cum:end,endDay:e-1});d=e}
+  return rows;
+}
+function renderCurve(){
+  const box=$("chartbox"),st=$("stats"),mt=$("months");
+  if(!result){box.innerHTML='<div class="empty">按「確認計算」產生 S 曲線</div>';st.innerHTML="";mt.innerHTML="";return}
+  const R=result,td=todayDay();
+  const peakI=R.daily.reduce((b,v,i,a)=>v>a[b]?i:b,0);
+  const half=R.cum.findIndex(v=>v>=0.5-1e-9);
+  st.innerHTML=`<div class="stat"><div class="k">預定完工日</div><div class="v">${iso(R.pEnd).replace(/-/g,"/")}</div></div>
+    <div class="stat"><div class="k">今日預定累計（${fmtShort(td)}）</div><div class="v">${pct(cumAt(td))}</div></div>
+    <div class="stat"><div class="k">累計達 50% 日期</div><div class="v">${half>=0?iso(R.t0+half).replace(/-/g,"/"):"—"}</div></div>
+    <div class="stat"><div class="k">單日預定最高</div><div class="v">${pct(R.daily[peakI],3)} <small>${fmtShort(R.t0+peakI)}</small></div></div>`;
+  // svg
+  const VW=1000,VH=380,L=56,Rm=20,T=18,B=40,cw=VW-L-Rm,ch=VH-T-B;
+  const X=i=>L+i/R.N*cw,Y=v=>T+(1-v)*ch;
+  let grid="";for(let p=0;p<=100;p+=20){grid+=`<line x1="${L}" x2="${VW-Rm}" y1="${Y(p/100)}" y2="${Y(p/100)}" stroke="var(--line)" stroke-width="1"/><text x="${L-8}" y="${Y(p/100)+4}" text-anchor="end">${p}%</text>`}
+  let ticks="",lastX=-99;for(let d=R.t0;d<=R.t1;d++){const t=ymd(d);if(t.d===1||d===R.t0){const xx=X(d-R.t0);grid+=`<line x1="${xx}" x2="${xx}" y1="${T}" y2="${T+ch}" stroke="var(--line)" stroke-dasharray="2 4"/>`;if(xx-lastX>54){ticks+=`<text x="${xx+3}" y="${VH-B+18}">${t.y%100}/${t.m}</text>`;lastX=xx}}}
+  let path=`M${X(0)},${Y(0)}`;for(let i=0;i<R.N;i++)path+=` L${X(i+1).toFixed(2)},${Y(R.cum[i]).toFixed(2)}`;
+  const area=path+` L${X(R.N)},${Y(0)} Z`;
+  const ex=X(R.pEnd-R.t0+1);
+  let extra=`<line x1="${ex}" x2="${ex}" y1="${T}" y2="${T+ch}" stroke="var(--ink)" stroke-dasharray="5 4" opacity=".6"/><text x="${ex-4}" y="${T+12}" text-anchor="end">完工 ${fmtShort(R.pEnd)}</text>`;
+  if(td>=R.t0&&td<=R.t1){const tx=X(td-R.t0+1),ty=Y(cumAt(td));extra+=`<line x1="${tx}" x2="${tx}" y1="${T}" y2="${T+ch}" stroke="var(--today)" stroke-width="1.5"/><circle cx="${tx}" cy="${ty}" r="4.5" fill="var(--today)"/><text x="${tx+6}" y="${ty-8}" style="fill:var(--today)">今日 ${pct(cumAt(td),1)}</text>`}
+  const lx=X(R.N),ly=Y(R.cum[R.N-1]);
+  box.innerHTML=`<svg viewBox="0 0 ${VW} ${VH}" role="img" aria-label="預定累計進度 S 曲線">${grid}
+    <path d="${area}" fill="var(--bar-soft)" opacity=".7"/>
+    <path d="${path}" fill="none" stroke="var(--curve)" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="${lx}" cy="${ly}" r="4" fill="var(--curve)"/>
+    ${extra}${ticks}
+    <line x1="${L}" x2="${VW-Rm}" y1="${T+ch}" y2="${T+ch}" stroke="var(--muted)"/>
+    <circle id="hdot" r="4.5" fill="var(--surface)" stroke="var(--curve)" stroke-width="2" style="display:none"/>
+    <rect id="hcap" x="${L}" y="${T}" width="${cw}" height="${ch}" fill="transparent"/></svg><div class="tip" id="tip" hidden></div>`;
+  const svg=box.querySelector("svg"),cap=svg.querySelector("#hcap"),dot=svg.querySelector("#hdot"),tip=box.querySelector("#tip");
+  const move=ev=>{const r=svg.getBoundingClientRect();const vx=(ev.clientX-r.left)/r.width*VW;let i=Math.round((vx-L)/cw*R.N)-1;i=Math.max(0,Math.min(R.N-1,i));
+    const cx=X(i+1),cy=Y(R.cum[i]);dot.setAttribute("cx",cx);dot.setAttribute("cy",cy);dot.style.display="";
+    tip.hidden=false;tip.style.left=(cx/VW*r.width)+"px";tip.style.top=(cy/VH*r.height)+"px";
+    tip.innerHTML=`${fmt(R.t0+i)}<br>當日 ${pct(R.daily[i],3)}・累計 ${pct(R.cum[i])}`};
+  cap.addEventListener("pointermove",move);cap.addEventListener("pointerdown",move);
+  cap.addEventListener("pointerleave",()=>{tip.hidden=true;dot.style.display="none"});
+  const rows=monthRows();
+  mt.innerHTML=`<thead><tr><th>月份</th>${rows.map(r=>`<th>${r.label}</th>`).join("")}</tr></thead><tbody><tr><td>當月預定</td>${rows.map(r=>`<td>${pct(r.month)}</td>`).join("")}</tr><tr><td>月底累計</td>${rows.map(r=>`<td>${pct(r.cum)}</td>`).join("")}</tr></tbody>`;
+}
+
+function renderAll(){renderProjOut();renderItems();renderGantt();renderCurve()}
+
+$("btnCalc").addEventListener("click",()=>{
+  const r=compute(),E=$("errors");
+  if(r.errs){E.hidden=false;E.innerHTML="無法計算，請修正：<ul>"+r.errs.filter(Boolean).map(e=>"<li>"+esc(e)+"</li>").join("")+"</ul>";E.scrollIntoView({block:"nearest",behavior:"smooth"});toast("資料不完整，尚未計算");return}
+  E.hidden=true;result=r;dirty=false;
+  const s=$("status");s.className="chip ok";const n=new Date();s.textContent=`已計算 ${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
+  document.body.classList.remove("stale");
+  renderAll();toast("計算完成");
+});
+$("zoom").addEventListener("change",renderGantt);
+$("btnSample").addEventListener("click",()=>{
+  if(unsaved&&!confirm("目前案場有未儲存的變更，載入範例會覆蓋畫面上的資料。確定嗎？"))return;
+  state=sample();result=null;fillProj();markDirty();renderAll();toast("已載入範例，按「確認計算」查看結果")});
+
+/* ---------- GitHub 雲端儲存 ---------- */
+const GH_KEY="gantt-gh";
+let gh=(()=>{try{return JSON.parse(localStorage.getItem(GH_KEY))||{}}catch(e){return {}}})();
+gh={owner:gh.owner||"alexanderliao1010",repo:gh.repo||"gantt-data",path:gh.path||"gantt.json",token:gh.token||""};
+let cloud={sha:null,data:{version:1,projects:[]},loaded:false};
+const ghReady=()=>!!(gh.owner&&gh.repo&&gh.path&&gh.token);
+const newId=()=>"p"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function b64enc(s){const u=new TextEncoder().encode(s);let b="";for(let i=0;i<u.length;i+=0x8000)b+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(b)}
+function b64dec(s){const bin=atob(s.replace(/\s/g,""));const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new TextDecoder().decode(u)}
+function ghHeaders(json){const h={Authorization:"Bearer "+gh.token,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};if(json)h["Content-Type"]="application/json";return h}
+const contentsUrl=()=>`https://api.github.com/repos/${encodeURIComponent(gh.owner)}/${encodeURIComponent(gh.repo)}/contents/${gh.path.split("/").map(encodeURIComponent).join("/")}`;
+function httpErr(st){
+  if(st===401)return new Error("權杖無效或已過期，請到「GitHub 連線設定」重新貼上權杖");
+  if(st===403)return new Error("權杖沒有這個 repo 的寫入權限（Contents 需設為 Read and write）");
+  if(st===404)return new Error(`找不到 ${gh.owner}/${gh.repo}，或權杖沒有存取這個 repo 的權限`);
+  return new Error("GitHub 回應錯誤（"+st+"），請稍後再試");
+}
+function hhmm(){const n=new Date();return String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0")}
+function setCloud(text,cls){const c=$("cloudStatus");c.className="chip"+(cls?" "+cls:"");c.textContent=text}
+function setCloudUnsaved(){setCloud(ghReady()?"未儲存":"未連線 GitHub",ghReady()?"dirty":"")}
+
+async function pull(){
+  setCloud("讀取中…","");
+  const r=await fetch(contentsUrl()+"?t="+Date.now(),{cache:"no-store",headers:ghHeaders()});
+  if(r.status===404){
+    const rr=await fetch(`https://api.github.com/repos/${encodeURIComponent(gh.owner)}/${encodeURIComponent(gh.repo)}`,{cache:"no-store",headers:ghHeaders()});
+    if(!rr.ok)throw httpErr(rr.status);
+    cloud={sha:null,data:{version:1,projects:[]},loaded:true};
+  }else if(!r.ok){throw httpErr(r.status)}
+  else{
+    const j=await r.json();let data;
+    try{data=JSON.parse(b64dec(j.content||""))}catch(e){throw new Error(gh.path+" 內容不是正確的 JSON，請檢查資料檔")}
+    if(!data||!Array.isArray(data.projects))data={version:1,projects:[]};
+    cloud={sha:j.sha,data,loaded:true};
+  }
+  renderSel();
+  if(unsaved)setCloudUnsaved();else setCloud("已連線 "+hhmm(),"ok");
+}
+async function put(mutate,msg){
+  for(let attempt=0;attempt<2;attempt++){
+    const data=JSON.parse(JSON.stringify(cloud.data));mutate(data);
+    const body={message:msg,content:b64enc(JSON.stringify(data,null,2))};if(cloud.sha)body.sha=cloud.sha;
+    const r=await fetch(contentsUrl(),{method:"PUT",headers:ghHeaders(true),body:JSON.stringify(body)});
+    if(r.ok){const j=await r.json();cloud.sha=j.content.sha;cloud.data=data;renderSel();return}
+    if((r.status===409||r.status===422)&&attempt===0){await pull();continue}
+    throw httpErr(r.status);
+  }
+}
+function renderSel(){
+  const sel=$("projSel");sel.innerHTML="";
+  const list=[...cloud.data.projects].sort((a,b)=>(b.updated||"").localeCompare(a.updated||""));
+  if(!list.some(p=>p.id===currentId)){const o=document.createElement("option");o.value=currentId||"";o.textContent=((state.proj.name||"").trim()||"新案場")+"（尚未儲存）";sel.appendChild(o)}
+  list.forEach(p=>{const o=document.createElement("option");o.value=p.id;const d=p.updated?new Date(p.updated):null;
+    o.textContent=p.name+(d?`　${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} 存`:"");sel.appendChild(o)});
+  sel.value=currentId||"";
+  $("btnDel").disabled=!cloud.data.projects.some(p=>p.id===currentId);
+}
+function tryAutoCalc(){
+  const r=compute();
+  if(!r.errs){result=r;dirty=false;const s=$("status");s.className="chip ok";s.textContent="已計算 "+hhmm();document.body.classList.remove("stale")}
+  else{result=null;dirty=true;const s=$("status");s.className="chip dirty";s.textContent="尚未計算";document.body.classList.add("stale")}
+  $("errors").hidden=true;renderAll();
+}
+function openProject(id){
+  const rec=cloud.data.projects.find(p=>p.id===id);if(!rec||!validState(rec.state))return;
+  state=JSON.parse(JSON.stringify(rec.state));currentId=id;unsaved=false;
+  fillProj();tryAutoCalc();renderSel();save();setCloud("已載入 "+hhmm(),"ok");
+}
+$("projSel").addEventListener("change",e=>{
+  const id=e.target.value;if(id===currentId)return;
+  if(unsaved&&!confirm("目前案場有未儲存的變更，切換後會遺失。確定要切換嗎？")){e.target.value=currentId||"";return}
+  openProject(id);
+});
+$("btnNew").addEventListener("click",()=>{
+  if(unsaved&&!confirm("目前案場有未儲存的變更，確定要開新案場嗎？"))return;
+  state=empty();currentId=newId();unsaved=false;result=null;fillProj();renderAll();renderSel();save();
+  const s=$("status");s.className="chip dirty";s.textContent="尚未計算";document.body.classList.add("stale");
+  setCloud(ghReady()?"新案場，尚未儲存":"未連線 GitHub",ghReady()?"dirty":"");$("pName").focus();
+});
+async function saveCloud(){
+  if(!ghReady()){fillGh();$("ghPanel").hidden=false;$("ghToken").focus();toast("請先完成 GitHub 連線設定");return}
+  if(!currentId)currentId=newId();
+  const rec={id:currentId,name:(state.proj.name||"").trim()||"未命名案場",updated:new Date().toISOString(),state:JSON.parse(JSON.stringify(state))};
+  const b=$("btnSave");b.disabled=true;b.textContent="儲存中…";setCloud("儲存中…","");
+  try{
+    if(!cloud.loaded)await pull();
+    await put(d=>{const i=d.projects.findIndex(p=>p.id===rec.id);if(i>=0)d.projects[i]=rec;else d.projects.push(rec)},"儲存案場："+rec.name);
+    unsaved=false;save();setCloud("已儲存 "+hhmm(),"ok");toast("已儲存到 GitHub："+rec.name);
+  }catch(e){setCloud("儲存失敗","dirty");toast(e.message)}
+  finally{b.disabled=false;b.textContent="儲存"}
+}
+$("btnSave").addEventListener("click",saveCloud);
+document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();saveCloud()}});
+$("btnReload").addEventListener("click",async()=>{
+  if(!ghReady()){fillGh();$("ghPanel").hidden=false;toast("請先完成 GitHub 連線設定");return}
+  if(unsaved&&!confirm("目前案場有未儲存的變更，重新讀取會以 GitHub 上的版本取代。確定嗎？"))return;
+  try{unsaved=false;await pull();if(cloud.data.projects.some(p=>p.id===currentId))openProject(currentId);toast("已從 GitHub 重新讀取")}catch(e){setCloud("讀取失敗","dirty");toast(e.message)}
+});
+$("btnDel").addEventListener("click",async()=>{
+  const rec=cloud.data.projects.find(p=>p.id===currentId);if(!rec)return;
+  if(!confirm(`確定要刪除「${rec.name}」？會從 GitHub 資料檔移除（GitHub 的歷史紀錄仍可找回）。`))return;
+  try{
+    await put(d=>{d.projects=d.projects.filter(p=>p.id!==rec.id)},"刪除案場："+rec.name);
+    const next=[...cloud.data.projects].sort((a,b)=>(b.updated||"").localeCompare(a.updated||""))[0];
+    unsaved=false;
+    if(next)openProject(next.id);else{state=empty();currentId=newId();result=null;fillProj();renderAll();renderSel();save()}
+    toast("已刪除："+rec.name);
+  }catch(e){toast(e.message)}
+});
+function fillGh(){$("ghOwner").value=gh.owner;$("ghRepo").value=gh.repo;$("ghPath").value=gh.path;$("ghToken").value=gh.token}
+$("btnGh").addEventListener("click",()=>{fillGh();$("ghPanel").hidden=!$("ghPanel").hidden});
+$("btnGhSave").addEventListener("click",async()=>{
+  gh={owner:$("ghOwner").value.trim(),repo:$("ghRepo").value.trim(),path:$("ghPath").value.trim()||"gantt.json",token:$("ghToken").value.trim()};
+  try{localStorage.setItem(GH_KEY,JSON.stringify(gh))}catch(e){}
+  if(!ghReady()){toast("請填完帳號、repo 與權杖");return}
+  try{await pull();$("ghPanel").hidden=true;toast(`已連線：${gh.owner}/${gh.repo}（${cloud.data.projects.length} 個案場）`);
+    if(!unsaved&&cloud.data.projects.some(p=>p.id===currentId))openProject(currentId);
+  }catch(e){setCloud("連線失敗","dirty");toast(e.message)}
+});
+$("btnGhOff").addEventListener("click",()=>{gh.token="";try{localStorage.setItem(GH_KEY,JSON.stringify(gh))}catch(e){}fillGh();cloud={sha:null,data:{version:1,projects:[]},loaded:false};renderSel();setCloud("未連線 GitHub","");toast("已清除這台裝置上的權杖")});
+window.addEventListener("beforeunload",e=>{if(unsaved){e.preventDefault();e.returnValue=""}});
+
+let toastT;function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true},2600)}
+
+/* ---------- Excel export ---------- */
+const downloadsP=(window.claude&&typeof window.claude.use==="function")?window.claude.use("downloads").catch(()=>null):Promise.resolve(undefined);
+
+function curvePng(){
+  const R=result,Wc=1920,Hc=860,s=2,c=document.createElement("canvas");c.width=Wc;c.height=Hc;const x=c.getContext("2d");x.scale(s,s);
+  const VW=Wc/s,VH=Hc/s,L=60,Rm=24,T=40,B=44,cw=VW-L-Rm,ch=VH-T-B,X=i=>L+i/R.N*cw,Y=v=>T+(1-v)*ch;
+  x.fillStyle="#fff";x.fillRect(0,0,VW,VH);
+  x.font="bold 16px 'Microsoft JhengHei','Noto Sans TC',sans-serif";x.fillStyle="#18202b";x.fillText("預定累計進度 S 曲線",L,24);
+  x.font="12px 'IBM Plex Mono',monospace";x.strokeStyle="#d6dbe2";x.fillStyle="#5b6574";x.lineWidth=1;
+  for(let p=0;p<=100;p+=20){const yy=Y(p/100);x.beginPath();x.moveTo(L,yy);x.lineTo(VW-Rm,yy);x.stroke();x.textAlign="right";x.fillText(p+"%",L-8,yy+4)}
+  x.textAlign="left";let lastX=-99;
+  for(let d=R.t0;d<=R.t1;d++){const t=ymd(d);if(t.d===1||d===R.t0){const xx=X(d-R.t0);x.setLineDash([2,4]);x.beginPath();x.moveTo(xx,T);x.lineTo(xx,T+ch);x.stroke();x.setLineDash([]);if(xx-lastX>54){x.fillText(t.y%100+"/"+t.m,xx+3,VH-B+18);lastX=xx}}}
+  x.beginPath();x.moveTo(X(0),Y(0));for(let i=0;i<R.N;i++)x.lineTo(X(i+1),Y(R.cum[i]));x.lineTo(X(R.N),Y(0));x.closePath();x.fillStyle="rgba(45,92,136,.15)";x.fill();
+  x.beginPath();x.moveTo(X(0),Y(0));for(let i=0;i<R.N;i++)x.lineTo(X(i+1),Y(R.cum[i]));x.strokeStyle="#2d5c88";x.lineWidth=2.5;x.stroke();
+  const ex=X(R.pEnd-R.t0+1);x.setLineDash([5,4]);x.strokeStyle="#18202b";x.lineWidth=1;x.beginPath();x.moveTo(ex,T);x.lineTo(ex,T+ch);x.stroke();x.setLineDash([]);
+  x.fillStyle="#18202b";x.textAlign="right";x.fillText("完工 "+iso(R.pEnd),ex-4,T+14);
+  x.strokeStyle="#5b6574";x.beginPath();x.moveTo(L,T+ch);x.lineTo(VW-Rm,T+ch);x.stroke();
+  return c.toDataURL("image/png").split(",")[1];
+}
+function colName(n){let s="";n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26)}return s}
+
+async function buildWorkbook(){
+  const R=result,P=R.proj,wb=new ExcelJS.Workbook();wb.creator="工程甘特圖";
+  const FONT="Microsoft JhengHei";
+  const thin={style:"thin",color:{argb:"FFBFC6D0"}},box={top:thin,left:thin,bottom:thin,right:thin};
+  const fill=c=>({type:"pattern",pattern:"solid",fgColor:{argb:c}});
+  const xd=d=>new Date(d*864e5);
+  const modeTxt=R.mode==="work"?"工作天":"日曆天";
+
+  /* 甘特圖 */
+  const ws=wb.addWorksheet("甘特圖",{views:[{state:"frozen",xSplit:8,ySplit:4}]});
+  const DC=8; // date columns start at index 8 (I)
+  const widths=[6,26,14,10,12,7,12,11];widths.forEach((w,i)=>ws.getColumn(i+1).width=w);
+  for(let i=0;i<R.N;i++)ws.getColumn(DC+i+1).width=7;
+  ws.mergeCells(1,1,1,8);const c1=ws.getCell(1,1);c1.value=P.name||"工程進度甘特圖";c1.font={name:FONT,size:14,bold:true};
+  ws.mergeCells(2,1,2,8);ws.getCell(2,1).value=`業主：${P.owner||"—"}　工期方式：${modeTxt}　工期：${R.pDays} 天　開工日：${iso(R.pStart)}　完工日：${iso(R.pEnd)}`;ws.getCell(2,1).font={name:FONT,size:10};
+  const heads=["項次","施工項目","金額","權重比","開始日期","天數","完成日期","單日百分比"];
+  heads.forEach((h,i)=>{ws.mergeCells(3,i+1,4,i+1);const c=ws.getCell(3,i+1);c.value=h;c.font={name:FONT,bold:true,size:10};c.alignment={horizontal:"center",vertical:"middle"};c.fill=fill("FFE9EDF2");c.border=box});
+  // month row + day row
+  for(let d=R.t0;d<=R.t1;){const t=ymd(d);const next=Math.round(Date.UTC(t.y,t.m,1)/864e5);const e=Math.min(next,R.t1+1);
+    const a=DC+(d-R.t0)+1,b=DC+(e-1-R.t0)+1;if(b>a)ws.mergeCells(3,a,3,b);const c=ws.getCell(3,a);c.value=`${t.y}年${t.m}月`;c.font={name:FONT,bold:true,size:9};c.alignment={horizontal:"left"};c.fill=fill("FFE9EDF2");c.border=box;d=e}
+  for(let i=0;i<R.N;i++){const d=R.t0+i,c=ws.getCell(4,DC+i+1);c.value=`${ymd(d).d}\n${WD[wday(d)]}`;c.alignment={horizontal:"center",vertical:"middle",wrapText:true};c.font={name:FONT,size:8,color:{argb:R.isWork(d)?"FF18202B":"FFB23B1E"}};c.fill=fill(R.isWork(d)?"FFE9EDF2":"FFD9DDE3");c.border=box}
+  ws.getRow(4).height=26;
+  const r0=5,rN=r0+R.items.length-1,totRow=rN+1;
+  R.items.forEach((it,k)=>{
+    const r=r0+k,row=ws.getRow(r);
+    row.getCell(1).value=k+1;row.getCell(2).value=it.name;row.getCell(3).value=it.amount;
+    row.getCell(4).value={formula:`C${r}/$C$${totRow}`,result:it.w};
+    row.getCell(5).value=xd(it.start);row.getCell(6).value=it.n;row.getCell(7).value=xd(it.end);
+    row.getCell(8).value={formula:`D${r}/F${r}`,result:it.daily};
+    row.getCell(3).numFmt="#,##0";row.getCell(4).numFmt="0.00%";row.getCell(5).numFmt="yyyy/mm/dd";row.getCell(7).numFmt="yyyy/mm/dd";row.getCell(8).numFmt="0.0000%";
+    for(let j=1;j<=8;j++){const c=row.getCell(j);c.font={name:FONT,size:10};c.border=box;if(j===1||j===6)c.alignment={horizontal:"center"}}
+    const daySet=new Set(it.days);
+    for(let i=0;i<R.N;i++){const d=R.t0+i,c=row.getCell(DC+i+1);c.border=box;
+      if(d>=it.start&&d<=it.end){if(daySet.has(d)){c.value=it.daily;c.numFmt="0.00%";c.font={name:FONT,size:7,color:{argb:"FFFFFFFF"}};c.fill=fill(it.warn?"FFB23B1E":"FF2D5C88")}else{c.fill=fill("FFB9C9DA")}}
+      else if(!R.isWork(d))c.fill=fill("FFF0F2F5")}
+    row.height=20;
+  });
+  const tr=ws.getRow(totRow);tr.getCell(2).value="合計";tr.getCell(3).value={formula:`SUM(C${r0}:C${rN})`,result:R.total};tr.getCell(3).numFmt="#,##0";tr.getCell(4).value={formula:`SUM(D${r0}:D${rN})`,result:1};tr.getCell(4).numFmt="0.00%";
+  const dRow=totRow+1,cRow=totRow+2;
+  ws.getCell(dRow,2).value="每日預定進度";ws.getCell(cRow,2).value="累計預定進度";
+  for(let j=1;j<=8;j++)[totRow,dRow,cRow].forEach(r=>{const c=ws.getCell(r,j);c.font={name:FONT,size:10,bold:true};c.fill=fill("FFF6F7F9");c.border=box});
+  for(let i=0;i<R.N;i++){const col=colName(DC+i);
+    const a=ws.getCell(dRow,DC+i+1);a.value={formula:`SUM(${col}${r0}:${col}${rN})`,result:R.daily[i]};a.numFmt="0.00%";a.font={name:FONT,size:7};a.border=box;
+    const b=ws.getCell(cRow,DC+i+1);b.value={formula:i===0?`${col}${dRow}`:`${colName(DC+i-1)}${cRow}+${col}${dRow}`,result:R.cum[i]};b.numFmt="0.00%";b.font={name:FONT,size:7,bold:true};b.border=box;b.fill=fill("FFFBEEDF")}
+  ws.getCell(cRow+2,2).value=`註：${modeTxt}計算；${R.mode==="work"?"灰底日期為非工作日，不計入工期及進度；":""}深色格內數字為該工項當日預定百分比。`;ws.getCell(cRow+2,2).font={name:FONT,size:9,color:{argb:"FF5B6574"}};
+
+  /* S曲線 */
+  const ss=wb.addWorksheet("S曲線");
+  const img=wb.addImage({base64:curvePng(),extension:"png"});
+  ss.addImage(img,{tl:{col:0,row:0},ext:{width:960,height:430}});
+  const s0=24;["日期","星期","每日預定進度","累計預定進度"].forEach((h,i)=>{const c=ss.getCell(s0,i+1);c.value=h;c.font={name:FONT,bold:true,size:10};c.fill=fill("FFE9EDF2");c.border=box});
+  [12,6,14,14].forEach((w,i)=>ss.getColumn(i+1).width=w);
+  for(let i=0;i<R.N;i++){const r=s0+1+i,d=R.t0+i;
+    ss.getCell(r,1).value=xd(d);ss.getCell(r,1).numFmt="yyyy/mm/dd";ss.getCell(r,2).value=WD[wday(d)];
+    ss.getCell(r,3).value=R.daily[i];ss.getCell(r,3).numFmt="0.000%";
+    ss.getCell(r,4).value=i===0?{formula:`C${r}`,result:R.cum[i]}:{formula:`D${r-1}+C${r}`,result:R.cum[i]};ss.getCell(r,4).numFmt="0.00%";
+    for(let j=1;j<=4;j++){ss.getCell(r,j).border=box;ss.getCell(r,j).font={name:FONT,size:10}}}
+
+  /* 月進度 */
+  const ms=wb.addWorksheet("月進度");
+  ["月份","當月預定進度","月底累計預定進度"].forEach((h,i)=>{const c=ms.getCell(1,i+1);c.value=h;c.font={name:FONT,bold:true,size:10};c.fill=fill("FFE9EDF2");c.border=box});
+  [12,16,18].forEach((w,i)=>ms.getColumn(i+1).width=w);
+  monthRows().forEach((m,k)=>{const r=k+2;ms.getCell(r,1).value=m.label;ms.getCell(r,2).value=m.month;ms.getCell(r,2).numFmt="0.00%";ms.getCell(r,3).value=m.cum;ms.getCell(r,3).numFmt="0.00%";for(let j=1;j<=3;j++){ms.getCell(r,j).border=box;ms.getCell(r,j).font={name:FONT,size:10}}});
+
+  /* 案場資料 */
+  const ps=wb.addWorksheet("案場資料");ps.getColumn(1).width=16;ps.getColumn(2).width=50;
+  [["工程名稱",P.name||""],["業主／主辦機關",P.owner||""],["計算工期方式",modeTxt],["工期天數",R.pDays],["開工日",xd(R.pStart)],["完工日",xd(R.pEnd)],["工項金額合計",R.total]].forEach((kv,k)=>{
+    const a=ps.getCell(k+1,1),b=ps.getCell(k+1,2);a.value=kv[0];b.value=kv[1];a.font={name:FONT,bold:true,size:10};b.font={name:FONT,size:10};a.fill=fill("FFE9EDF2");a.border=box;b.border=box;
+    if(kv[1] instanceof Date)b.numFmt="yyyy/mm/dd";if(kv[0]==="工項金額合計")b.numFmt="#,##0";b.alignment={horizontal:"left"}});
+  if(R.mode==="work"){
+    const ex=[P.exSat?"星期六":"",P.exSun?"星期日":"",P.exHol?"國定假日／自訂休息日":""].filter(Boolean).join("、")||"無";
+    ps.getCell(9,1).value="不計工期";ps.getCell(9,2).value=ex;
+    ps.getCell(11,1).value="休息日清單";ps.getCell(11,1).font={name:FONT,bold:true,size:10};
+    (P.holidays||"").split(/\n/).map(s=>s.trim()).filter(Boolean).forEach((l,k)=>{ps.getCell(12+k,2).value=l;ps.getCell(12+k,2).font={name:FONT,size:10}});
+  }
+  return wb;
+}
+
+$("btnExport").addEventListener("click",async()=>{
+  if(!result||dirty){toast("請先按「確認計算」，再匯出 Excel");return}
+  if(typeof ExcelJS==="undefined"){toast("Excel 元件尚未載入，請稍候再試");return}
+  const b=$("btnExport");b.disabled=true;b.textContent="產生中…";
+  try{
+    const wb=await buildWorkbook();const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const name=((result.proj.name||"工程").replace(/[\\/:*?"<>|]/g,"").trim()||"工程")+"_甘特圖.xlsx";
+    const dl=await downloadsP;
+    if(dl){
+      try{await dl.save({filename:name,data:blob});toast("已匯出 "+name)}
+      catch(e){toast(e&&e.code==="declined"?"已取消匯出":"匯出失敗："+((e&&e.message)||"請再試一次"))}
+    }else if(dl===undefined){
+      const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);toast("已匯出 "+name);
+    }else{toast("此檢視模式無法下載檔案，請改用 claude.ai 開啟")}
+  }catch(e){console.error(e);toast("匯出失敗："+(e.message||e))}
+  finally{b.disabled=false;b.textContent="匯出 Excel"}
+});
+
+/* ---------- init ---------- */
+const draft=loadDraft();
+if(draft){state=draft.state;currentId=draft.id||newId();unsaved=!!draft.unsaved}else{state=sample();currentId=newId();unsaved=false}
+fillProj();fillGh();renderAll();document.body.classList.add("stale");renderSel();setCloudUnsaved();
+if(!unsaved){tryAutoCalc()}
+if(ghReady()){
+  pull().then(()=>{
+    if(unsaved)return;
+    if(cloud.data.projects.some(p=>p.id===currentId))openProject(currentId);
+    else if(!draft&&cloud.data.projects.length){openProject([...cloud.data.projects].sort((a,b)=>(b.updated||"").localeCompare(a.updated||""))[0].id)}
+  }).catch(e=>{setCloud("連線失敗","dirty");toast(e.message)});
+}else{setCloud("未連線 GitHub","")}
+window.__gantt={compute:()=>compute(),calc:()=>$("btnCalc").click(),build:()=>buildWorkbook()};
+})();
+</script>
+</body>
+</html>
