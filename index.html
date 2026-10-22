@@ -192,6 +192,7 @@ table.months{border-collapse:collapse;font-size:12px;margin-top:14px;min-width:1
         <div class="f"><label for="projSel">案場（儲存在 GitHub）</label><select id="projSel"></select></div>
         <div class="cloud-btns">
           <button class="btn" id="btnNew" type="button">＋ 新增案場</button>
+          <button class="btn" id="btnSaveAs" type="button">另存新案場</button>
           <button class="btn" id="btnSample" type="button">載入範例</button>
           <button class="btn" id="btnReload" type="button">重新讀取</button>
           <button class="btn danger" id="btnDel" type="button">刪除案場</button>
@@ -625,6 +626,16 @@ async function saveCloud(){
   finally{b.disabled=false;b.textContent="儲存"}
 }
 $("btnSave").addEventListener("click",saveCloud);
+$("btnSaveAs").addEventListener("click",async()=>{
+  const base=(state.proj.name||"").trim()||"未命名案場";
+  const name=prompt("另存新案場：請輸入新案場名稱（目前畫面上的資料會複製一份，原案場保持不變）",base+"（複本）");
+  if(name===null)return;
+  const nm=name.trim()||base+"（複本）";
+  if(cloud.data.projects.some(p=>p.name===nm)&&!confirm(`已經有名稱為「${nm}」的案場，仍要另存一份嗎？`))return;
+  state=JSON.parse(JSON.stringify(state));state.proj.name=nm;
+  currentId=newId();unsaved=true;fillProj();renderSel();save();
+  await saveCloud();
+});
 document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();saveCloud()}});
 $("btnReload").addEventListener("click",async()=>{
   if(!ghReady()){fillGh();$("ghPanel").hidden=false;toast("請先完成 GitHub 連線設定");return}
